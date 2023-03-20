@@ -36,7 +36,7 @@ def detect(gat_ae, dataset):
 
             for time_step in range(1,case_len-1):
                 for attr_index in range(len(attribute_dims)):
-                        # 取比实际出现的属性值大的其他属性值的概率之和
+                    # 取比实际出现的属性值大的其他属性值的概率之和
                     truepos=one_Xs[attr_index][time_step]
                     attr_level_abnormal_scores[index,time_step,attr_index]=attr_reconstruction_outputs[attr_index][time_step,attr_reconstruction_outputs[attr_index][time_step]>attr_reconstruction_outputs[attr_index][time_step,truepos]].sum()
         trace_level_abnormal_scores = attr_level_abnormal_scores.max((1, 2))

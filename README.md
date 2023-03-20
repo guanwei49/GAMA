@@ -1,1 +1,1 @@
-# GRASPED: A Graph Attention Network based Multi-perspective Business Process Anomaly Detection Framework
+# GAMA: A Multi-graph-based Anomaly Detection Framework for Business Processes via Graph Neural Networks
