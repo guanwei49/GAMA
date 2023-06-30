@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from model import device
 from model.GAT_AE import  GAT_AE
-
+import random
 def train(dataset,n_epochs ,lr ,b1 ,b2 ,seed,enc_hidden_dim , GAT_heads , decoder_num_layers, dec_hidden_dim,TF_styles):
 
     if type(seed) is int:
@@ -30,10 +30,15 @@ def train(dataset,n_epochs ,lr ,b1 ,b2 ,seed,enc_hidden_dim , GAT_heads , decode
     for epoch in range(int(n_epochs)):
         train_loss = 0.0
         train_num = 0
-        for index, graphs in enumerate(tqdm(dataset.trace_graphs)):
+        indexs = [i for i in range(len(dataset))]  #打乱顺序
+        random.shuffle(indexs)
+
+        for index in tqdm(indexs):
+            graphs=dataset.trace_graphs[index]
             for k, graph in enumerate(graphs):
                 graphs[k] = graph.to(device)
             one_Xs=[]
+
             for k, X in enumerate(Xs):
                 one_Xs.append(X[index])
 

@@ -66,6 +66,9 @@ class Dataset(object):
 
         self._gen_trace_graphs()
 
+    def __len__(self):
+        return self.num_cases
+
     def _gen_trace_graphs(self):
 
         graph_relation = np.zeros((self.attribute_dims[0]+1,self.attribute_dims[0]+1),dtype='int32')
