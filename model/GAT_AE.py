@@ -257,7 +257,7 @@ class GAT_AE(nn.Module):
     def forward(self, graphs , Xs):
         '''
         :param graphs:是多个属性对应的图，每一个属性作为一个graph
-        :param Xs:是多个属性，每一个属性作为一个X ： [len(attribute_dims), time_step]
+        :param Xs:是多个属性，每一个属性作为一个X ： 列表长度为len(attribute_dims)，列表中元素长度为 [time_step]
         :return:
         '''
         case_len = len(graphs[0].x)
