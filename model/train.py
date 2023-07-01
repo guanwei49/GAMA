@@ -6,12 +6,12 @@ from tqdm import tqdm
 from model import device
 from model.GAT_AE import  GAT_AE
 import random
-def train(dataset,n_epochs ,lr ,b1 ,b2 ,seed,enc_hidden_dim , GAT_heads , decoder_num_layers, dec_hidden_dim,TF_styles):
+def train(dataset,n_epochs ,lr ,b1 ,b2 ,seed,hidden_dim , GAT_heads , decoder_num_layers,TF_styles):
 
     if type(seed) is int:
         torch.manual_seed(seed)
 
-    gat_ae = GAT_AE(dataset.attribute_dims, dataset.max_len, enc_hidden_dim, GAT_heads, decoder_num_layers, dec_hidden_dim, TF_styles)
+    gat_ae = GAT_AE(dataset.attribute_dims, dataset.max_len, hidden_dim, GAT_heads, decoder_num_layers, TF_styles)
     loss_func = nn.CrossEntropyLoss()
 
     gat_ae.to(device)

@@ -133,98 +133,98 @@ class Attention(nn.Module):
         return result,attention_probs
 
 class Decoder_act(nn.Module):
-    def __init__(self, vocab_size, enc_hid_dim, dec_hid_dim,num_layers,output_dim):
+    def __init__(self, vocab_size, hid_dim,num_layers,output_dim):
         super().__init__()
         self.num_layers=num_layers
         self.vocab_size = vocab_size
-        self.attention =  Attention(enc_hid_dim, dec_hid_dim)
-        self.embedding = nn.Embedding(vocab_size, enc_hid_dim)
-        self.rnn = nn.GRU(enc_hid_dim + enc_hid_dim, dec_hid_dim,num_layers = num_layers,dropout=0.3)
-        self.fc_out = nn.Linear(enc_hid_dim  + dec_hid_dim + enc_hid_dim , output_dim)
+        self.attention =  Attention(hid_dim, hid_dim)
+        self.embedding = nn.Embedding(vocab_size, hid_dim)
+        self.rnn = nn.GRU( 2*hid_dim, hid_dim,num_layers = num_layers,dropout=0.3)
+        self.fc_out = nn.Linear(3*hid_dim, output_dim)
         self.dropout = nn.Dropout(0.3)
 
     def forward(self, dec_input, s, enc_output):
         # dec_input = [1]
-        # s = [1, dec_hid_dim]
-        # enc_output = [case_len*num_attr, 1, enc_hid_dim ]
+        # s = [1, hid_dim]
+        # enc_output = [case_len*num_attr, 1, hid_dim ]
 
         dec_input = dec_input.unsqueeze(0) # dec_input = [1]=> [1,1]
-        dec_input =self.embedding(dec_input) # dec_input = [1,1] => [1,1,enc_hid_dim]
+        dec_input =self.embedding(dec_input) # dec_input = [1,1] => [1,1,hid_dim]
 
-        dropout_dec_input = self.dropout(dec_input) #  [1, 1,enc_hid_dim]=>[1,1,enc_hid_dim]
+        dropout_dec_input = self.dropout(dec_input) #  [1, 1,hid_dim]=>[1,1,hid_dim]
 
-        # c = [1, 1, enc_hid_dim], attention_probs=[1,1,case_len*num_attr]
+        # c = [1, 1, hid_dim], attention_probs=[1,1,case_len*num_attr]
         c,attention_probs = self.attention(s, enc_output)
 
-        rnn_input = torch.cat((dropout_dec_input, c), dim = 2) # rnn_input = [1, 1, enc_hid_dim+ enc_hid_dim]
+        rnn_input = torch.cat((dropout_dec_input, c), dim = 2) # rnn_input = [1, 1, hid_dim+ hid_dim]
 
-        # dec_output=[1,1,dec_hid_dim]  ; dec_hidden=[num_layers,1,dec_hid_dim]
+        # dec_output=[1,1,dec_hid_dim]  ; dec_hidden=[num_layers,1,hid_dim]
         dec_output, dec_hidden = self.rnn(rnn_input, s.repeat( self.num_layers,1,1))
 
-        dec_output = dec_output.squeeze(0) # dec_output:[ 1, dec_hid_dim]
+        dec_output = dec_output.squeeze(0) # dec_output:[ 1, hid_dim]
 
-        c = c.squeeze(0)  # c:[1, enc_hid_dim]
+        c = c.squeeze(0)  # c:[1, hid_dim]
 
-        dropout_dec_input=dropout_dec_input.squeeze(0)  # dec_input:[1, enc_hid_dim]
+        dropout_dec_input=dropout_dec_input.squeeze(0)  # dec_input:[1, hid_dim]
 
         pred = self.fc_out(torch.cat((dec_output, c, dropout_dec_input), dim = 1))# pred = [1, output_dim]
 
         return pred, dec_hidden[-1],attention_probs
 
 class Decoder_attr(nn.Module):
-    def __init__(self, vocab_size, enc_hid_dim, dec_hid_dim,num_layers,output_dim,TF_styles):
+    def __init__(self, vocab_size, hid_dim,num_layers,output_dim,TF_styles):
         super().__init__()
         self.num_layers=num_layers
         self.vocab_size = vocab_size
-        self.attention =  Attention(enc_hid_dim, dec_hid_dim)
-        self.embedding_act = nn.Embedding(vocab_size, enc_hid_dim)
-        self.embedding_attr = nn.Embedding(output_dim, enc_hid_dim)
+        self.attention =  Attention(hid_dim, hid_dim)
+        self.embedding_act = nn.Embedding(vocab_size, hid_dim)
+        self.embedding_attr = nn.Embedding(output_dim, hid_dim)
         self.TF_styles=TF_styles
         emb_num = 1
         if TF_styles == 'FAP' :
             emb_num=2
-        self.rnn = nn.GRU(enc_hid_dim * emb_num + enc_hid_dim, dec_hid_dim,num_layers = num_layers,dropout=0.3)
-        self.fc_out = nn.Linear(enc_hid_dim  + dec_hid_dim + enc_hid_dim * emb_num , output_dim)
+        self.rnn = nn.GRU(hid_dim * emb_num + hid_dim, hid_dim,num_layers = num_layers,dropout=0.3)
+        self.fc_out = nn.Linear(hid_dim  + hid_dim + hid_dim * emb_num , output_dim)
         self.dropout = nn.Dropout(0.3)
 
     def forward(self, dec_input_act,dec_input_attr, s, enc_output):
         # dec_input_act = [1]
         # dec_input_attr = [1]
-        # s = [1, dec_hid_dim]
-        # enc_output = [case_len*num_attr, 1, enc_hid_dim * 2]
+        # s = [1, hid_dim]
+        # enc_output = [case_len*num_attr, 1, hid_dim * 2]
 
         dec_input_act = dec_input_act.unsqueeze(0) # dec_input = [1]=> [1,1]
-        dec_input_act =self.embedding_act(dec_input_act) # dec_input = [1, 1] => [1, 1,enc_hid_dim]
+        dec_input_act =self.embedding_act(dec_input_act) # dec_input = [1, 1] => [1, 1,hid_dim]
 
-        dropout_dec_input_act = self.dropout(dec_input_act) #  [1, 1,enc_hid_dim]=>[1,1,enc_hid_dim]
+        dropout_dec_input_act = self.dropout(dec_input_act) #  [1, 1,hid_dim]=>[1,1,hid_dim]
 
         dec_input_attr = dec_input_attr.unsqueeze(0)  # dec_input = [1, 1]
-        dec_input_attr = self.embedding_attr(dec_input_attr)  # dec_input = [1, 1] => [1, 1,enc_hid_dim]
+        dec_input_attr = self.embedding_attr(dec_input_attr)  # dec_input = [1, 1] => [1, 1,hid_dim]
 
-        dropout_dec_input_attr = self.dropout(dec_input_attr)  # [1, 1,enc_hid_dim]=>[1,1,enc_hid_dim]
+        dropout_dec_input_attr = self.dropout(dec_input_attr)  # [1, 1,hid_dim]=>[1,1,hid_dim]
 
-        # c = [1, 1, enc_hid_dim], attention_probs=[1,1,case_len*num_attr]
+        # c = [1, 1, hid_dim], attention_probs=[1,1,case_len*num_attr]
         c,attention_probs = self.attention(s, enc_output)
 
         if  self.TF_styles=='AN':
             rnn_input = torch.cat((dropout_dec_input_act,  c),
-                                  dim=2)  # rnn_input = [1, batch_size, enc_hid_dim + enc_hid_dim]
+                                  dim=2)  # rnn_input = [1, batch_size, hid_dim + hid_dim]
         elif  self.TF_styles=='PAV':
             rnn_input = torch.cat((dropout_dec_input_attr, c),
-                                  dim=2)  # rnn_input = [1, batch_size, enc_hid_dim+ enc_hid_dim]
+                                  dim=2)  # rnn_input = [1, batch_size, hid_dim+ hid_dim]
         else:  #FAP
             rnn_input = torch.cat((dropout_dec_input_act, dropout_dec_input_attr, c),
-                                  dim=2)  # rnn_input = [1, batch_size, (enc_hid_dim * 2)+ enc_hid_dim]
+                                  dim=2)  # rnn_input = [1, batch_size, (hid_dim * 2)+ hid_dim]
 
 
         dec_output, dec_hidden = self.rnn(rnn_input, s.repeat( self.num_layers,1,1))
-        # dec_output=[1,1,dec_hid_dim]  ; dec_hidden=[num_layers,1,dec_hid_dim]
-        dec_output = dec_output.squeeze(0) # dec_output:[ batch_size, dec_hid_dim]
+        # dec_output=[1,1,hid_dim]  ; dec_hidden=[num_layers,1,hid_dim]
+        dec_output = dec_output.squeeze(0) # dec_output:[ batch_size, hid_dim]
 
-        c = c.squeeze(0)  # c:[1, enc_hid_dim]
+        c = c.squeeze(0)  # c:[1, hid_dim]
 
-        dropout_dec_input_act=dropout_dec_input_act.squeeze(0)  # dropout_dec_input_act:[1, enc_hid_dim]
-        dropout_dec_input_attr=dropout_dec_input_attr.squeeze(0) # dropout_dec_input_attr:[1, enc_hid_dim]
+        dropout_dec_input_act=dropout_dec_input_act.squeeze(0)  # dropout_dec_input_act:[1, hid_dim]
+        dropout_dec_input_attr=dropout_dec_input_attr.squeeze(0) # dropout_dec_input_attr:[1, hid_dim]
 
         if self.TF_styles == 'AN':
             pred = self.fc_out(torch.cat((dec_output, c, dropout_dec_input_act), dim = 1)) # pred = [1, output_dim]
@@ -236,19 +236,19 @@ class Decoder_attr(nn.Module):
         return pred, dec_hidden[-1],attention_probs
 
 class GAT_AE(nn.Module):
-    def __init__(self,  attribute_dims,max_seq_len ,enc_hidden_dim, GAT_heads, decoder_num_layers, dec_hidden_dim,TF_styles):
+    def __init__(self,  attribute_dims,max_seq_len ,hidden_dim, GAT_heads, decoder_num_layers,TF_styles):
         super().__init__()
         encoders=[]
         decoders=[]
         self.attribute_dims=attribute_dims
         for i, dim in enumerate(attribute_dims):
-            encoders.append( GAT_Encoder(int(dim), enc_hidden_dim, GAT_heads, max_seq_len ))
+            encoders.append( GAT_Encoder(int(dim), hidden_dim, GAT_heads, max_seq_len ))
             if i == 0:
-                decoders.append(Decoder_act(int(attribute_dims[0] + 1), enc_hidden_dim, dec_hidden_dim, decoder_num_layers,
+                decoders.append(Decoder_act(int(attribute_dims[0] + 1), hidden_dim, decoder_num_layers,
                                             int(dim + 1)))
             else:
                 decoders.append(
-                    Decoder_attr(int(attribute_dims[0] + 1), enc_hidden_dim, dec_hidden_dim, decoder_num_layers,
+                    Decoder_attr(int(attribute_dims[0] + 1), hidden_dim, decoder_num_layers,
                                  int(dim + 1),TF_styles))
         self.encoders=nn.ModuleList(encoders)
         self.decoders = nn.ModuleList(decoders)
@@ -274,14 +274,14 @@ class GAT_AE(nn.Module):
             attr_reconstruction_outputs.append(torch.zeros(case_len, output_dim).to(device))  # 存储decoder的所有输出
             enc_output_ = self.encoders[i](graph)
             s_= enc_output_.mean(0)  #取所有节点的平均作为decoder的第一个隐藏状态的输入
-            # enc_output_ = [case_len , 1, enc_hid_dim]
+            # enc_output_ = [case_len , 1, hid_dim]
             if enc_output is None:
                 # Z = enc_output_.squeeze(1)
                 enc_output = enc_output_
             else:
                 # Z = torch.cat((Z, enc_output_.squeeze(1)), dim=1)
                 enc_output = torch.cat((enc_output, enc_output_), dim=0)
-            # enc_output = [case_len*len(self.attribute_dims), 1, enc_hid_dim ]
+            # enc_output = [case_len*len(self.attribute_dims), 1, hid_dim ]
             s.append(s_)
 
             attr_reconstruction_outputs[-1][0, X[0]] = 1
