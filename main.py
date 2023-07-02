@@ -50,7 +50,7 @@ if __name__ == '__main__':
                                                                                                 n_epochs=20,
                                                                                                 lr=0.0002,
                                                                                                 decoder_num_layers=2,
-                                                                                                batch_size=64,
+                                                                                                batch_size=32,
                                                                                                 hidden_dim=32,
                                                                                                 TF_styles='FAP')
     attr_level_detection = (attr_level_abnormal_scores > threshold).astype('int64')
