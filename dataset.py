@@ -5,7 +5,6 @@ import numpy as np
 from pm4py.objects.log.importer.xes import importer as xes_importer
 from sklearn.preprocessing import LabelEncoder
 import torch
-from torch_geometric.data import Data
 
 def to_categorical(y, num_classes=None, dtype='float32'):
     y = np.array(y, dtype='int')
@@ -26,7 +25,8 @@ class Dataset(object):
     def __init__(self, dataset_Path,attr_keys, beta=0):
         # Public properties
         self.dataset_name = dataset_Path
-        self.trace_graphs = []
+        self.edge_indexs = []
+        self.node_xs=[]
         self.node_dims=[]
         self.beta=beta
 
@@ -70,7 +70,6 @@ class Dataset(object):
         return self.num_cases
 
     def _gen_trace_graphs(self):
-
         graph_relation = np.zeros((self.attribute_dims[0]+1,self.attribute_dims[0]+1),dtype='int32')
         for case_index in range(self.num_cases):
             if self.case_lens[case_index]>1:
@@ -93,8 +92,7 @@ class Dataset(object):
             xs = []
             ##构造顶点信息
             for attr_index in range(self.num_attributes):
-                xs.append(onehot_features[case_index, :self.case_lens[case_index],
-                          dims_range[attr_index][0]:dims_range[attr_index][1]])
+                xs.append(torch.tensor(onehot_features[case_index, :,dims_range[attr_index][0]:dims_range[attr_index][1]]))
 
             if self.case_lens[case_index]>1:
                 ##构造边信息
@@ -110,9 +108,12 @@ class Dataset(object):
                             if  activity_index+1 != node_index:
                                 edge.append([activity_index, node_index])  # 添加有向边
             edge_index = torch.tensor(edge, dtype=torch.long)
-            for attr_index in range(self.num_attributes):
-                attr_graphs.append(Data(torch.tensor(xs[attr_index], dtype=torch.float), edge_index=edge_index.T))
-            self.trace_graphs.append(attr_graphs)
+            self.node_xs.append(xs)
+            self.edge_indexs.append(edge_index.T)
+            # for attr_index in range(self.num_attributes):
+
+                # attr_graphs.append(Data(torch.tensor(xs[attr_index], dtype=torch.float), edge_index=edge_index.T))
+            # self.trace_graphs.append(attr_graphs)
 
         self.node_dims = self.attribute_dims.copy()
 
@@ -131,6 +132,12 @@ class Dataset(object):
         """Return the length of the case with the most events."""
         return self.features[0].shape[1]
 
+    @property
+    def mask(self):
+        self._mask = np.zeros(self.features[0].shape, dtype=bool)
+        for m, j in zip(self._mask, self.case_lens):
+            m[:j] = True
+        return self._mask
 
     @property
     def attribute_dims(self):

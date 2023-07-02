@@ -10,10 +10,11 @@ from model.train import train
 from dataset import Dataset
 
 
-def main(dataset,n_epochs=2 ,lr=0.0002 ,b1=0.5 ,b2=0.999 ,seed=None,hidden_dim = 64 , GAT_heads = 4,decoder_num_layers=2,TF_styles:str='FAP'):
+def main(dataset,n_epochs=30,batch_size =64,lr=0.0002 ,b1=0.5 ,b2=0.999 ,seed=None,hidden_dim = 64 , GAT_heads = 4,decoder_num_layers=2,TF_styles:str='FAP'):
     '''
     :param dataset: instance of Dataset
     :param n_epochs:  number of epochs of training
+    :param batch_size:
     :param lr: adam: learning rate
     :param b1: adam: decay of first order momentum of gradient
     :param b2: adam: decay of first order momentum of gradient
@@ -28,10 +29,10 @@ def main(dataset,n_epochs=2 ,lr=0.0002 ,b1=0.5 ,b2=0.999 ,seed=None,hidden_dim =
     if TF_styles not in ['AN','PAV', 'FAP']:
         raise Exception('"TF_styles" must be a value in ["AN","PAV", "FAP"]')
 
-    gat_ae = train(dataset,n_epochs ,lr ,b1 ,b2 ,seed ,hidden_dim, GAT_heads ,decoder_num_layers ,TF_styles)
+    gat_ae = train(dataset,n_epochs ,batch_size,lr ,b1 ,b2 ,seed ,hidden_dim, GAT_heads ,decoder_num_layers ,TF_styles)
 
 
-    trace_level_abnormal_scores,event_level_abnormal_scores,attr_level_abnormal_scores = detect(gat_ae, dataset)
+    trace_level_abnormal_scores,event_level_abnormal_scores,attr_level_abnormal_scores = detect(gat_ae, dataset,batch_size)
 
     return  trace_level_abnormal_scores,event_level_abnormal_scores,attr_level_abnormal_scores
 
@@ -46,10 +47,11 @@ if __name__ == '__main__':
     dataset = Dataset(logPath, attr_keys)
 
     trace_level_abnormal_scores, event_level_abnormal_scores, attr_level_abnormal_scores = main(dataset,
-                                                                                                n_epochs=2,
+                                                                                                n_epochs=20,
                                                                                                 lr=0.0002,
                                                                                                 decoder_num_layers=2,
-                                                                                                hidden_dim=64,
+                                                                                                batch_size=64,
+                                                                                                hidden_dim=32,
                                                                                                 TF_styles='FAP')
     attr_level_detection = (attr_level_abnormal_scores > threshold).astype('int64')
     event_level_detection = ((attr_level_abnormal_scores > threshold).sum(axis=2) >= 1).astype('int64')

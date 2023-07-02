@@ -25,15 +25,12 @@ class PositionalEncoder(nn.Module):
                         math.cos(pos / (10000 ** ((2 * (i + 1)) / input_dim)))
         self.register_buffer('pe', pe)
 
-    def forward(self, x):
+    def forward(self, x,batch_size):
         # make embeddings relatively larger
         x = x * math.sqrt(self.input_dim)
         # add constant to embedding
-        seq_len = x.size(0)
-        pe = Variable(self.pe[ :seq_len], requires_grad=False)
-        if x.is_cuda:
-            pe.cuda()
-        x = x + pe
+        batch_pe= self.pe.repeat((batch_size,1,1))
+        x = x + batch_pe.reshape((-1,batch_pe.shape[2]))
         return self.dropout(x)
 
 
@@ -54,18 +51,18 @@ class GAT_Encoder(nn.Module):
                              heads=1,
                              dropout=0.4)
 
-    def forward(self, data):
+    def forward(self, data,batch_size):
         x, edge_index = data.x, data.edge_index
         # x = self.embed(x)
-        x = self.pe(x)
+        x = self.pe(x,batch_size)
         x = F.dropout(x, p=0.4, training=self.training)
         x = self.conv1(x, edge_index)
         x = F.elu(x)
         x = F.dropout(x, p=0.4, training=self.training)
-        x = self.conv2(x, edge_index)
-        x = x.unsqueeze(1)
+        x = self.conv2(x, edge_index) # x:[batch_size*seq_len , enc_hidden_dim]
+        x = x.reshape(batch_size,-1,x.shape[1]) # x:[batch_size, seq_len , enc_hidden_dim]
 
-        return x   # x:[seq_len,1,enc_hidden_dim]
+        return x
 
 
 # class Attention(nn.Module):
@@ -109,28 +106,34 @@ class Attention(nn.Module):
     '''
     def __init__(self, enc_hid_dim, dec_hid_dim):
         super().__init__()
-        self.hidden=64
+        self.hidden=enc_hid_dim
         self.query = nn.Linear(dec_hid_dim, self.hidden)
-        self.key = nn.Linear(enc_hid_dim , self.hidden)
+        self.key = nn.Linear(enc_hid_dim, self.hidden)
 
-    def forward(self, s, enc_output):
+    def forward(self, s, enc_output,mask):
         # s = [batch_size, dec_hidden_dim]
-        # enc_output = [seq_len, batch_size, enc_hid_dim * 2]
+        # enc_output = [self.max_seq_len*len(self.attribute_dims), batch_size, enc_hid_dim ]
         s = s.unsqueeze(0) # [batch_size, dec_hid_dim]=>[1, batch_size, dec_hid_dim]
-        s=s.transpose(0, 1)
-        q=self.query(s)
-        enc_output=enc_output.transpose(0, 1)
-        k=self.key(enc_output)
-        k=k.transpose(1, 2)
+        s=s.transpose(0, 1) # [1, batch_size, dec_hid_dim] => [batch_size,1 dec_hid_dim]
+        q=self.query(s) # [batch_size,1 , self.hidden]
+        enc_output=enc_output.transpose(0, 1)  # [batch_size, , enc_hid_dim ]
+        k=self.key(enc_output) # [batch_size,self.max_seq_len*len(self.attribute_dims),  self.hidden]
+        k=k.transpose(1, 2) # [batch_size, self.hidden, self.max_seq_len*len(self.attribute_dims)]
 
-        attention_scores= torch.bmm(q, k)
+        attention_scores= torch.bmm(q, k)  # [batch_size, 1, self.max_seq_len*len(self.attribute_dims)]
         attention_scores=attention_scores/ math.sqrt(self.hidden)
 
-        attention_probs = nn.Softmax(dim=-1)(attention_scores)##[ batch_size, 1, seq_len]
+        mask=mask.unsqueeze(1)
+        num_attr = int(attention_scores.shape[2]/mask.shape[2])
+        mask = mask.repeat((1, 1,num_attr))
 
-        result = torch.bmm(attention_probs, enc_output).transpose(0, 1)
+        attention_scores[~mask] = float('-inf')
 
-        return result,attention_probs
+        attention_probs = nn.Softmax(dim=-1)(attention_scores) #[ batch_size, 1, self.max_seq_len*len(self.attribute_dims)]
+
+        result = torch.bmm(attention_probs, enc_output).transpose(0, 1)  # [1, batch_size, enc_hid_dim]
+
+        return result
 
 class Decoder_act(nn.Module):
     def __init__(self, vocab_size, hid_dim,num_layers,output_dim):
@@ -143,33 +146,33 @@ class Decoder_act(nn.Module):
         self.fc_out = nn.Linear(3*hid_dim, output_dim)
         self.dropout = nn.Dropout(0.3)
 
-    def forward(self, dec_input, s, enc_output):
-        # dec_input = [1]
-        # s = [1, hid_dim]
+    def forward(self, dec_input, s, enc_output,mask):
+        # dec_input = [batch_size]
+        # s = [batch_size, hid_dim]
         # enc_output = [case_len*num_attr, 1, hid_dim ]
 
-        dec_input = dec_input.unsqueeze(0) # dec_input = [1]=> [1,1]
-        dec_input =self.embedding(dec_input) # dec_input = [1,1] => [1,1,hid_dim]
+        dec_input = dec_input.unsqueeze(0) # dec_input = [batch_size]=> [1,batch_size]
+        dec_input =self.embedding(dec_input) # dec_input = [1,batch_size] => [1,batch_size,hid_dim]
 
-        dropout_dec_input = self.dropout(dec_input) #  [1, 1,hid_dim]=>[1,1,hid_dim]
+        dropout_dec_input = self.dropout(dec_input) #  [1, batch_size,hid_dim]
 
-        # c = [1, 1, hid_dim], attention_probs=[1,1,case_len*num_attr]
-        c,attention_probs = self.attention(s, enc_output)
+        # c = [1, batch_size, hid_dim]
+        c = self.attention(s, enc_output,mask)
 
-        rnn_input = torch.cat((dropout_dec_input, c), dim = 2) # rnn_input = [1, 1, hid_dim+ hid_dim]
+        rnn_input = torch.cat((dropout_dec_input, c), dim = 2) # rnn_input = [1, batch_size, hid_dim+ hid_dim]
 
-        # dec_output=[1,1,dec_hid_dim]  ; dec_hidden=[num_layers,1,hid_dim]
+        # dec_output=[1,batch_size,dec_hid_dim]  ; dec_hidden=[num_layers,batch_size,hid_dim]
         dec_output, dec_hidden = self.rnn(rnn_input, s.repeat( self.num_layers,1,1))
 
-        dec_output = dec_output.squeeze(0) # dec_output:[ 1, hid_dim]
+        dec_output = dec_output.squeeze(0) # dec_output:[ batch_size, hid_dim]
 
-        c = c.squeeze(0)  # c:[1, hid_dim]
+        c = c.squeeze(0)  # c:[1, batch_size, hid_dim] => [batch_size, hid_dim]
 
-        dropout_dec_input=dropout_dec_input.squeeze(0)  # dec_input:[1, hid_dim]
+        dropout_dec_input=dropout_dec_input.squeeze(0)  # dropout_dec_input:[1, batch_size, hid_dim] => [batch_size, hid_dim]
 
-        pred = self.fc_out(torch.cat((dec_output, c, dropout_dec_input), dim = 1))# pred = [1, output_dim]
+        pred = self.fc_out(torch.cat((dec_output, c, dropout_dec_input), dim = 1))# pred = [batch_size, output_dim]
 
-        return pred, dec_hidden[-1],attention_probs
+        return pred, dec_hidden[-1]
 
 class Decoder_attr(nn.Module):
     def __init__(self, vocab_size, hid_dim,num_layers,output_dim,TF_styles):
@@ -187,24 +190,24 @@ class Decoder_attr(nn.Module):
         self.fc_out = nn.Linear(hid_dim  + hid_dim + hid_dim * emb_num , output_dim)
         self.dropout = nn.Dropout(0.3)
 
-    def forward(self, dec_input_act,dec_input_attr, s, enc_output):
-        # dec_input_act = [1]
-        # dec_input_attr = [1]
-        # s = [1, hid_dim]
+    def forward(self, dec_input_act,dec_input_attr, s, enc_output,mask):
+        # dec_input_act = [batch_size]
+        # dec_input_attr = [batch_size]
+        # s = [batch_size, hid_dim]
         # enc_output = [case_len*num_attr, 1, hid_dim * 2]
 
-        dec_input_act = dec_input_act.unsqueeze(0) # dec_input = [1]=> [1,1]
-        dec_input_act =self.embedding_act(dec_input_act) # dec_input = [1, 1] => [1, 1,hid_dim]
+        dec_input_act = dec_input_act.unsqueeze(0) # dec_input = [1]=> [1,batch_size]
+        dec_input_act =self.embedding_act(dec_input_act) # dec_input = [1, batch_size] => [1, batch_size,hid_dim]
 
-        dropout_dec_input_act = self.dropout(dec_input_act) #  [1, 1,hid_dim]=>[1,1,hid_dim]
+        dropout_dec_input_act = self.dropout(dec_input_act) #  [1, batch_size,hid_dim]
 
-        dec_input_attr = dec_input_attr.unsqueeze(0)  # dec_input = [1, 1]
-        dec_input_attr = self.embedding_attr(dec_input_attr)  # dec_input = [1, 1] => [1, 1,hid_dim]
+        dec_input_attr = dec_input_attr.unsqueeze(0)  # dec_input = [1, batch_size]
+        dec_input_attr = self.embedding_attr(dec_input_attr)  # dec_input = [1, batch_size] => [1, batch_size,hid_dim]
 
-        dropout_dec_input_attr = self.dropout(dec_input_attr)  # [1, 1,hid_dim]=>[1,1,hid_dim]
+        dropout_dec_input_attr = self.dropout(dec_input_attr)  # [1, batch_size,hid_dim]
 
-        # c = [1, 1, hid_dim], attention_probs=[1,1,case_len*num_attr]
-        c,attention_probs = self.attention(s, enc_output)
+        # c = [1, batch_size, hid_dim]
+        c = self.attention(s, enc_output,mask)
 
         if  self.TF_styles=='AN':
             rnn_input = torch.cat((dropout_dec_input_act,  c),
@@ -218,28 +221,29 @@ class Decoder_attr(nn.Module):
 
 
         dec_output, dec_hidden = self.rnn(rnn_input, s.repeat( self.num_layers,1,1))
-        # dec_output=[1,1,hid_dim]  ; dec_hidden=[num_layers,1,hid_dim]
+        # dec_output=[1,batch_size,hid_dim]  ; dec_hidden=[num_layers,batch_size,hid_dim]
         dec_output = dec_output.squeeze(0) # dec_output:[ batch_size, hid_dim]
 
-        c = c.squeeze(0)  # c:[1, hid_dim]
+        c = c.squeeze(0)  # c:[batch_size, hid_dim]
 
-        dropout_dec_input_act=dropout_dec_input_act.squeeze(0)  # dropout_dec_input_act:[1, hid_dim]
-        dropout_dec_input_attr=dropout_dec_input_attr.squeeze(0) # dropout_dec_input_attr:[1, hid_dim]
+        dropout_dec_input_act=dropout_dec_input_act.squeeze(0)  # dropout_dec_input_act:[batch_size, hid_dim]
+        dropout_dec_input_attr=dropout_dec_input_attr.squeeze(0) # dropout_dec_input_attr:[batch_size, hid_dim]
 
         if self.TF_styles == 'AN':
-            pred = self.fc_out(torch.cat((dec_output, c, dropout_dec_input_act), dim = 1)) # pred = [1, output_dim]
+            pred = self.fc_out(torch.cat((dec_output, c, dropout_dec_input_act), dim = 1)) # pred = [batch_size, output_dim]
         elif self.TF_styles == 'PAV':
-            pred = self.fc_out(torch.cat((dec_output, c,  dropout_dec_input_attr), dim=1)) # pred = [1, output_dim]
+            pred = self.fc_out(torch.cat((dec_output, c,  dropout_dec_input_attr), dim=1)) # pred = [batch_size, output_dim]
         else:  # FAP
-            pred = self.fc_out(torch.cat((dec_output, c, dropout_dec_input_act,dropout_dec_input_attr), dim = 1)) # pred = [1, output_dim]
+            pred = self.fc_out(torch.cat((dec_output, c, dropout_dec_input_act,dropout_dec_input_attr), dim = 1)) # pred = [batch_size, output_dim]
 
-        return pred, dec_hidden[-1],attention_probs
+        return pred, dec_hidden[-1]
 
 class GAT_AE(nn.Module):
     def __init__(self,  attribute_dims,max_seq_len ,hidden_dim, GAT_heads, decoder_num_layers,TF_styles):
         super().__init__()
         encoders=[]
         decoders=[]
+        self.max_seq_len=max_seq_len
         self.attribute_dims=attribute_dims
         for i, dim in enumerate(attribute_dims):
             encoders.append( GAT_Encoder(int(dim), hidden_dim, GAT_heads, max_seq_len ))
@@ -254,13 +258,14 @@ class GAT_AE(nn.Module):
         self.decoders = nn.ModuleList(decoders)
 
 
-    def forward(self, graphs , Xs):
+    def forward(self, graphs , Xs, mask,batch_size):
         '''
         :param graphs:是多个属性对应的图，每一个属性作为一个graph
-        :param Xs:是多个属性，每一个属性作为一个X ： 列表长度为len(attribute_dims)，列表中元素长度为 [time_step]
+        :param Xs:是多个属性，每一个属性作为一个X ： 列表长度为len(attribute_dims)，列表中元素长度为 [batch_size,seq_len]
+        :param mask:(batch_size,seq_len)
+        :param batch_size:
         :return:
         '''
-        case_len = len(graphs[0].x)
         attr_reconstruction_outputs = [] #概率分布 probability map
         s = []  #解码层GRU初始隐藏表示
         enc_output = None
@@ -269,52 +274,50 @@ class GAT_AE(nn.Module):
 
             output_dim = int(dim) + 1
             graph = graphs[i]
-            X=Xs[i]
 
-            attr_reconstruction_outputs.append(torch.zeros(case_len, output_dim).to(device))  # 存储decoder的所有输出
-            enc_output_ = self.encoders[i](graph)
-            s_= enc_output_.mean(0)  #取所有节点的平均作为decoder的第一个隐藏状态的输入
-            # enc_output_ = [case_len , 1, hid_dim]
+
+            attr_reconstruction_outputs.append(torch.zeros(self.max_seq_len, batch_size, output_dim).to(device))  # 存储decoder的所有输出
+            enc_output_ = self.encoders[i](graph,batch_size) # enc_output_:[batch_size, self.max_seq_len , hidden_dim]
+            enc_output_ = enc_output_.permute((1,0,2)) # enc_output_:[self.max_seq_len ,batch_size , hidden_dim]
+            s_= enc_output_.mean(0)  #取所有节点的平均作为decoder的第一个隐藏状态的输入  s_:[batch_size, hidden_dim]
             if enc_output is None:
-                # Z = enc_output_.squeeze(1)
                 enc_output = enc_output_
             else:
-                # Z = torch.cat((Z, enc_output_.squeeze(1)), dim=1)
                 enc_output = torch.cat((enc_output, enc_output_), dim=0)
-            # enc_output = [case_len*len(self.attribute_dims), 1, hid_dim ]
+            # enc_output = [self.max_seq_len*len(self.attribute_dims), batch_size, hidden_dim ]
             s.append(s_)
 
-            attr_reconstruction_outputs[-1][0, X[0]] = 1
 
         for i, dim in enumerate(self.attribute_dims):
             if i == 0:
-                X = Xs[i]
-                s0 = s[i]
-                dec_input = X[0].unsqueeze(0)  # target的第一列，即是起始字符 teacher_forcing
+                X = Xs[i]   #[batch_size, self.max_seq_len]
+                s0 = s[i]  # s0 :[batch_size, hidden_dim]
+                dec_input = X[:,0] # target的第一列，即是起始字符 teacher_forcing   [batch_size]
 
-                for t in range(1, case_len):
-                    dec_output, s0, attention_probs = self.decoders[i](dec_input, s0, enc_output)
+                for t in range(1,  self.max_seq_len):
+                    dec_output, s0 = self.decoders[i](dec_input, s0, enc_output,mask)
 
                     # 存储每个时刻的输出
-                    attr_reconstruction_outputs[i][t] = dec_output
+                    attr_reconstruction_outputs[i][t] = dec_output #dec_output:[batch_size,output_dim]
 
-                    dec_input = X[t].unsqueeze(0)  # teacher_forcing
+                    dec_input = X[:,t] # teacher_forcing
             else:
-                s0 = s[i]
-                X_act = Xs[0]  # activity
-                X_attr = Xs[i]
-                dec_input_attr = X_attr[0].unsqueeze(0)  # target的第一列，即是起始字符 teacher_forcing
+                s0 = s[i] # s0 :[batch_size, hidden_dim]
+                X_act = Xs[0]  # activity  [batch_size, self.max_seq_len]
+                X_attr = Xs[i] #  [batch_size, self.max_seq_len]
+                dec_input_attr = X_attr[:,0]  # target的第一列，即是起始字符 teacher_forcing  [batch_size]
 
-                for t in range(1, case_len):
-                    dec_input_act = X_act[t].unsqueeze(0)  # teacher_forcing activity
+                for t in range(1,  self.max_seq_len):
+                    dec_input_act = X_act[:,t]  # teacher_forcing activity [batch_size]
 
-                    dec_output, s0, attention_probs = self.decoders[i](dec_input_act, dec_input_attr, s0, enc_output)  # s0隐藏状态
+                    dec_output, s0 = self.decoders[i](dec_input_act, dec_input_attr, s0, enc_output,mask)  # s0隐藏状态
 
                     # 存储每个时刻的输出
-                    attr_reconstruction_outputs[i][t] = dec_output
+                    attr_reconstruction_outputs[i][t] = dec_output  #dec_output:[batch_size,output_dim]
 
-                    dec_input_attr = X_attr[t].unsqueeze(0)  # teacher_forcing
+                    dec_input_attr = X_attr[:,t] # teacher_forcing [batch_size]
 
-
+        for i,attr_reconstruction_output in enumerate(attr_reconstruction_outputs):
+            attr_reconstruction_outputs[i] = attr_reconstruction_output.transpose(0, 1)
 
         return attr_reconstruction_outputs

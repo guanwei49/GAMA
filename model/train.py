@@ -1,13 +1,13 @@
 import torch
 from torch import nn
 import torch.optim as optim
+from torch_geometric.data import Data, Batch
 from tqdm import tqdm
 
 from model import device
 from model.GAT_AE import  GAT_AE
 import random
-def train(dataset,n_epochs ,lr ,b1 ,b2 ,seed,hidden_dim , GAT_heads , decoder_num_layers,TF_styles):
-
+def train(dataset,n_epochs,batch_size,lr ,b1 ,b2 ,seed,hidden_dim , GAT_heads , decoder_num_layers ,TF_styles):
     if type(seed) is int:
         torch.manual_seed(seed)
 
@@ -20,40 +20,44 @@ def train(dataset,n_epochs ,lr ,b1 ,b2 ,seed,hidden_dim , GAT_heads , decoder_nu
 
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
-    Xs=[]
+    Xs = []
     for i, dim in enumerate(dataset.attribute_dims):
-        Xs.append( torch.LongTensor(dataset.features[i]))
-    for k, X in enumerate(Xs):
-        Xs[k] = X.to(device)
+        Xs.append(torch.LongTensor(dataset.features[i]))
 
     print("*"*10+"training"+"*"*10)
     for epoch in range(int(n_epochs)):
         train_loss = 0.0
         train_num = 0
+        #自定义的dataloader
         indexs = [i for i in range(len(dataset))]  #打乱顺序
         random.shuffle(indexs)
 
-        for index in tqdm(indexs):
-            graphs=dataset.trace_graphs[index]
-            for k, graph in enumerate(graphs):
-                graphs[k] = graph.to(device)
-            one_Xs=[]
+        for bathc_i in tqdm(range(batch_size, len(indexs)+1,batch_size)):
+            this_batch_indexes=indexs[bathc_i-batch_size:bathc_i]
+            nodes_list = [dataset.node_xs[i] for i in this_batch_indexes]
+            edge_indexs_list = [dataset.edge_indexs[i] for i in this_batch_indexes]
+            Xs_list=[]
+            graph_batch_list = []
+            for i in range(len(dataset.attribute_dims)):
+                Xs_list.append(Xs[i][this_batch_indexes].to(device))
+                graph_batch = Batch.from_data_list([Data(x=nodes_list[b][i], edge_index=edge_indexs_list[b])
+                                                    for b in range(len(nodes_list))])
+                graph_batch_list.append(graph_batch.to(device))
+            mask= torch.tensor(dataset.mask[this_batch_indexes]).to(device)
 
-            for k, X in enumerate(Xs):
-                one_Xs.append(X[index])
 
-            case_len = len(graphs[0].x)
-            attr_reconstruction_outputs = gat_ae(graphs,one_Xs)
+            attr_reconstruction_outputs = gat_ae(graph_batch_list,Xs_list,mask,len(this_batch_indexes))
 
             optimizer.zero_grad()
 
             loss=0.0
-            for ij in range(len(dataset.attribute_dims)):
+            mask[:, 0] = False # 除了每一个属性的起始字符之外,其他重建误差
+            for i in range(len(dataset.attribute_dims)):
                 #--------------
                 # 除了每一个属性的起始字符之外,其他重建误差
                 #---------------
-                pred=attr_reconstruction_outputs[ij][1:,:]
-                true=one_Xs[ij][1:case_len]
+                pred=attr_reconstruction_outputs[i][mask]
+                true=Xs_list[i][mask]
                 loss+=loss_func(pred,true)
 
             train_loss += loss.item()
