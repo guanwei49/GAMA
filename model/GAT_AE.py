@@ -113,6 +113,8 @@ class Attention(nn.Module):
     def forward(self, s, enc_output,mask):
         # s = [batch_size, dec_hidden_dim]
         # enc_output = [self.max_seq_len*len(self.attribute_dims), batch_size, enc_hid_dim ]
+        # mask = [batch_size,max_seq_len]
+
         s = s.unsqueeze(0) # [batch_size, dec_hid_dim]=>[1, batch_size, dec_hid_dim]
         s=s.transpose(0, 1) # [1, batch_size, dec_hid_dim] => [batch_size,1 dec_hid_dim]
         q=self.query(s) # [batch_size,1 , self.hidden]
@@ -150,6 +152,7 @@ class Decoder_act(nn.Module):
         # dec_input = [batch_size]
         # s = [batch_size, hid_dim]
         # enc_output = [max_seq_len*num_attr, 1, hid_dim ]
+        # mask = [batch_size,max_seq_len]
 
         dec_input = dec_input.unsqueeze(0) # dec_input = [batch_size]=> [1,batch_size]
         dec_input =self.embedding(dec_input) # dec_input = [1,batch_size] => [1,batch_size,hid_dim]
@@ -195,6 +198,7 @@ class Decoder_attr(nn.Module):
         # dec_input_attr = [batch_size]
         # s = [batch_size, hid_dim]
         # enc_output = [case_len*num_attr, 1, hid_dim * 2]
+        # mask = [batch_size,max_seq_len]
 
         dec_input_act = dec_input_act.unsqueeze(0) # dec_input = [1]=> [1,batch_size]
         dec_input_act =self.embedding_act(dec_input_act) # dec_input = [1, batch_size] => [1, batch_size,hid_dim]
