@@ -149,7 +149,7 @@ class Decoder_act(nn.Module):
     def forward(self, dec_input, s, enc_output,mask):
         # dec_input = [batch_size]
         # s = [batch_size, hid_dim]
-        # enc_output = [case_len*num_attr, 1, hid_dim ]
+        # enc_output = [max_seq_len*num_attr, 1, hid_dim ]
 
         dec_input = dec_input.unsqueeze(0) # dec_input = [batch_size]=> [1,batch_size]
         dec_input =self.embedding(dec_input) # dec_input = [1,batch_size] => [1,batch_size,hid_dim]
