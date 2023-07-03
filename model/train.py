@@ -29,11 +29,11 @@ def train(dataset,n_epochs,batch_size,lr ,b1 ,b2 ,seed,hidden_dim , GAT_heads , 
         train_loss = 0.0
         train_num = 0
         #自定义的dataloader
-        indexs = [i for i in range(len(dataset))]  #打乱顺序
-        random.shuffle(indexs)
+        indexes = [i for i in range(len(dataset))]  #打乱顺序
+        random.shuffle(indexes)
 
-        for bathc_i in tqdm(range(batch_size, len(indexs)+1,batch_size)):
-            this_batch_indexes=indexs[bathc_i-batch_size:bathc_i]
+        for bathc_i in tqdm(range(batch_size, len(indexes)+1,batch_size)):
+            this_batch_indexes=indexes[bathc_i-batch_size:bathc_i]
             nodes_list = [dataset.node_xs[i] for i in this_batch_indexes]
             edge_indexs_list = [dataset.edge_indexs[i] for i in this_batch_indexes]
             Xs_list=[]
