@@ -85,7 +85,6 @@ class Dataset(object):
         graph_relation = np.array(graph_relation >= self.beta*self.num_cases, dtype='int32')
 
         onehot_features = self.flat_onehot_features
-        eye = np.eye(self.max_len, dtype=int)
         for case_index in range(self.num_cases):  #生成图
             attr_graphs = []
             edge = []
