@@ -7,6 +7,7 @@ from tqdm import tqdm
 from model import device
 from model.GAT_AE import  GAT_AE
 import random
+
 def train(dataset,n_epochs,batch_size,lr ,b1 ,b2 ,seed,hidden_dim , GAT_heads , decoder_num_layers ,TF_styles):
     if type(seed) is int:
         torch.manual_seed(seed)
@@ -18,7 +19,12 @@ def train(dataset,n_epochs,batch_size,lr ,b1 ,b2 ,seed,hidden_dim , GAT_heads , 
 
     optimizer = torch.optim.Adam(gat_ae.parameters(),lr=lr, betas=(b1, b2))
 
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            optimizer=optimizer,
+            gamma=0.85
+        )
 
     Xs = []
     for i, dim in enumerate(dataset.attribute_dims):
@@ -43,14 +49,14 @@ def train(dataset,n_epochs,batch_size,lr ,b1 ,b2 ,seed,hidden_dim , GAT_heads , 
                 graph_batch = Batch.from_data_list([Data(x=nodes_list[b][i], edge_index=edge_indexs_list[b])
                                                     for b in range(len(nodes_list))])
                 graph_batch_list.append(graph_batch.to(device))
-            mask= torch.tensor(dataset.mask[this_batch_indexes]).to(device)
+            mask = torch.tensor(dataset.mask[this_batch_indexes]).to(device)
 
 
             attr_reconstruction_outputs = gat_ae(graph_batch_list,Xs_list,mask,len(this_batch_indexes))
 
             optimizer.zero_grad()
 
-            loss=0.0
+            loss = 0.0
             mask[:, 0] = False # 除了每一个属性的起始字符之外,其他重建误差
             for i in range(len(dataset.attribute_dims)):
                 #--------------
@@ -60,13 +66,14 @@ def train(dataset,n_epochs,batch_size,lr ,b1 ,b2 ,seed,hidden_dim , GAT_heads , 
                 true=Xs_list[i][mask]
                 loss+=loss_func(pred,true)
 
-            train_loss += loss.item()
+            train_loss += loss.item()/len(dataset.attribute_dims)
             train_num += 1
             loss.backward()
             optimizer.step()
         ## 计算一个epoch在训练集上的损失和精度
         train_loss_epoch=train_loss / train_num
         print(f"[Epoch {epoch+1:{len(str(n_epochs))}}/{n_epochs}] "
+              f"[LR {optimizer.state_dict()['param_groups'][0]['lr']}] "
               f"[loss: {train_loss_epoch:3f}]")
         scheduler.step()
 

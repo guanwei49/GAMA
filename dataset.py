@@ -86,7 +86,6 @@ class Dataset(object):
 
         onehot_features = self.flat_onehot_features
         for case_index in range(self.num_cases):  #生成图
-            attr_graphs = []
             edge = []
             xs = []
             ##构造顶点信息
