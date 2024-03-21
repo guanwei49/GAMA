@@ -141,9 +141,9 @@ if __name__ == '__main__':
 
                 datanew = pd.DataFrame(
                     [{'index': dataset_name, 'trace_p': trace_p, "trace_r": trace_r, 'trace_f1': trace_f1,
-                      'trace_aupr': trace_aupr,
-                      'event_p': event_p, "event_r": event_r, 'event_f1': event_f1, 'event_aupr': event_aupr,
-                      'attr_p': attr_p, "attr_r": attr_r, 'attr_f1': attr_f1, 'attr_aupr': attr_aupr,'time':run_time
+                      'trace_AP': trace_aupr,
+                      'event_p': event_p, "event_r": event_r, 'event_f1': event_f1, 'event_AP': event_aupr,
+                      'attr_p': attr_p, "attr_r": attr_r, 'attr_f1': attr_f1, 'attr_AP': attr_aupr,'time':run_time
                       }])
                 if os.path.exists(resPath):
                     data = pd.read_csv(resPath)
