@@ -3,10 +3,12 @@ This is the source code of our paper '**GAMA: A Multi-graph-based Anomaly Detect
 ![model](pic/architecture.png)
 
 ## Requirements
-- [PyTorch](https://pytorch.org)
-- [NumPy](https://numpy.org)
-- [scikit-learn](https://scikit-learn.org)
-- [pm4py](https://pm4py.fit.fraunhofer.de/)
+- [PyTorch==1.13.0](https://pytorch.org)
+- [NumPy==1.23.5](https://numpy.org)
+- [scikit-learn==1.2.1](https://scikit-learn.org)
+- [pm4py==2.6.1](https://pm4py.fit.fraunhofer.de/)
+- [PyG==2.1.0](https://pytorch-geometric.readthedocs.io/en/latest/index.html)
+- [pandas==1.5.3](https://pandas.pydata.org/)
 
 ## Using Our Code
 ```
