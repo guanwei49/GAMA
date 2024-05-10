@@ -1,7 +1,7 @@
 # GAMA: A Multi-graph-based Anomaly Detection Framework for Business Processes via Graph Neural Networks
 
-This is the source code of our paper '**GAMA: A Multi-graph-based Anomaly Detection Framework for Business Processes via
-Graph Neural Networks**'.
+This is the source code of our paper '[**GAMA: A Multi-graph-based Anomaly Detection Framework for Business Processes via
+Graph Neural Networks**](https://www.techrxiv.org/doi/full/10.36227/techrxiv.23627850.v2)'.
 ![model](pic/architecture.png)
 
 ## Requirements
