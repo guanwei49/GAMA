@@ -129,6 +129,7 @@ _F−scores_  over real-life logs where 'T' and 'A' represent trace- and attribu
   title={GAMA: A multi-graph-based anomaly detection framework for business processes via graph neural networks},
   author={Guan, Wei and Cao, Jian and Gu, Yang and Qian, Shiyou},
   journal={Information Systems},
+  volume={124},
   pages={102405},
   year={2024},
   publisher={Elsevier}
