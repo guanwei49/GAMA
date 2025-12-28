@@ -40,19 +40,19 @@ Three teacher forcing (TF) styles have been implemented:
 
 Six commonly used real-life logs:
 
-i) **_Billing_**: This log contains events that pertain to the billing of medical services provided by a hospital.
+i) **_[Billing](https://doi.org/10.4121/uuid:76c46b83-c930-4798-a1c9-4be94dfeb741)_**: This log contains events that pertain to the billing of medical services provided by a hospital.
 
-ii) **_Receipt_**: This log contains records of the receiving phase of the building permit application process in an
+ii) **_[Receipt](https://doi.org/10.4121/12709127.v2)_**: This log contains records of the receiving phase of the building permit application process in an
 anonymous municipality.
 
-iii) **_Sepsis_**: This log contains events of sepsis cases from a hospital.
+iii) **_[Sepsis](https://doi.org/10.4121/uuid:915d2bfb-7e84-49ad-a286-dc35f063a460)_**: This log contains events of sepsis cases from a hospital.
 
-iv)  **_RTFMP_**: Real-life event log of an information system managing road traffic fines.
+iv)  **_[RTFMP](https://doi.org/10.4121/uuid:270fd440-1057-4fb9-89a9-b699b47990f5)_**: Real-life event log of an information system managing road traffic fines.
 
-v) **_Permit_**:  it contains events related to travel permits (including all related events of relevant prepaid travel
+v) **_[Permit](https://doi.org/10.4121/uuid:ea03d361-a7cd-4f5e-83d8-5fbdf0362550)_**:  it contains events related to travel permits (including all related events of relevant prepaid travel
 cost declarations and travel declarations).
 
-vi) **_Declaration_**: it contains events related to international travel declarations.
+vi) **_[Declaration](https://doi.org/10.4121/uuid:2bbf8f6a-fc50-48eb-aa9e-c4ea5ef7e8c5)_**: it contains events related to international travel declarations.
 
 Eight synthetic logs: i.e., **_Paper_**,  _**P2P**_, **_Small_**, **_Medium_**, **_Large_**, **_Huge_**, **_Gigantic_**,
 and **_Wide_**.
